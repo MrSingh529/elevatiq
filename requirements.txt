@@ -2,3 +2,4 @@ streamlit
 requests
 reportlab
 google-api-python-client
+tweepy
