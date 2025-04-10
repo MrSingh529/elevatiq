@@ -1,9 +1,11 @@
 import streamlit as st
 import requests
 import re
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 import io
 
 # Set page config as the first command
@@ -203,10 +205,10 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
 
     # Header with Logo and LMS Name
     try:
-        logo = Image("assets/images/logo.png", width=1*inch, height=1*inch)  # Ensure logo.png exists in assets/images/
+        logo = Image("assets/images/logo.png", width=1*inch, height=1*inch)
         story.append(logo)
     except:
-        story.append(Paragraph("Dynamic LMS", header_style))  # Fallback if logo fails
+        story.append(Paragraph("Dynamic LMS", header_style))
     story.append(Paragraph("Dynamic LMS - Personalized Learning Path", header_style))
     story.append(Spacer(1, 0.2*inch))
 
@@ -237,7 +239,6 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
 
     # Recommendations
     story.append(Paragraph("Recommended Learning Path", subheader_style))
-    # Split recommendations into phases
     phases = ["Beginner", "Intermediate", "Advanced"]
     current_phase = None
     for line in recommendations.split("\n"):
