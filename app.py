@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import re
+import tweepy
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
@@ -9,9 +10,9 @@ from reportlab.lib.units import inch
 import io
 
 # Set page config as the first command
-st.set_page_config(page_title="Dynamic LMS", page_icon="📚")  # Branding
+st.set_page_config(page_title="Dynamic LMS", page_icon="📚")
 
-# Custom CSS with Tooltips, Visual Ratings, and Theming
+# Custom CSS (unchanged)
 st.markdown("""
     <style>
     .main { background-color: #f5f7fa; font-family: 'Roboto', sans-serif; padding: 20px; }
@@ -36,6 +37,15 @@ st.markdown("""
 GEMINI_API_KEY = st.secrets["api_keys"]["gemini_api_key"]
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
+# X API Setup
+X_API_KEY = st.secrets["x_api"]["api_key"]
+X_API_SECRET = st.secrets["x_api"]["api_secret"]
+X_BEARER_TOKEN = st.secrets["x_api"]["bearer_token"]
+
+auth = tweepy.OAuthHandler(X_API_KEY, X_API_SECRET)
+auth.set_access_token(X_API_KEY, X_API_SECRET)  # Note: For Bearer Token, use tweepy.Client instead if needed
+api = tweepy.API(auth)
+
 def get_gemini_response(prompt: str) -> str:
     headers = {"Content-Type": "application/json"}
     body = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -48,7 +58,34 @@ def get_gemini_response(prompt: str) -> str:
     except Exception as e:
         return f"Error: {e}"
 
-# Language Support
+# Function to Fetch Trending Skills from X
+def get_trending_skills(profession: str) -> list:
+    try:
+        # Use X API to search for trending topics or skills (simplified example)
+        query = f"trending skills {profession} -filter:retweets"
+        tweets = api.search_tweets(q=query, count=50, lang="en", tweet_mode="extended")
+        
+        # Extract skills from tweets (basic keyword matching)
+        skill_keywords = ["python", "javascript", "java", "cloud", "ai", "machine learning", "data analysis", "devops", "design"]
+        trending_skills = []
+        skill_count = {}
+
+        for tweet in tweets:
+            text = tweet.full_text.lower()
+            for skill in skill_keywords:
+                if skill in text and skill not in trending_skills:
+                    skill_count[skill] = skill_count.get(skill, 0) + 1
+                    if skill_count[skill] > 1 and len(trending_skills) < 5:
+                        trending_skills.append(skill.title())
+
+        if not trending_skills:
+            trending_skills = ["No trending skills found"]  # Fallback
+        return trending_skills[:5]  # Limit to 5 skills
+    except Exception as e:
+        st.error(f"Error fetching trending skills from X: {e}")
+        return ["Error fetching trends"]
+
+# Language Support (unchanged)
 LANGUAGES = {
     "English": {
         "title": "Your Personalized Learning Journey",
@@ -107,8 +144,9 @@ if "form_submitted" not in st.session_state:
     st.session_state.verification_scores = {}
     st.session_state.skills_verified = False
     st.session_state.language = "English"
+    st.session_state.trending_skills = []
 
-# Functions
+# Existing Functions (updated where noted)
 def validate_input(name: str, email: str, profession: str) -> bool:
     email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     return (name.strip() != "" and 
@@ -177,24 +215,26 @@ def score_verification_answers(answers: dict) -> dict:
             scores[skill.strip()] = int(score.strip())
     return scores
 
-def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, scores: dict, prerequisites: dict) -> str:
+def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, scores: dict, prerequisites: dict, trending_skills: list) -> str:
     skill_info = "\n".join([f"{skill}: Self-rated {rating}/10, Verification: {answers.get(skill, 'Not provided')}, Score: {scores.get(skill, 'N/A')}/10, Prerequisite: {prerequisites.get(skill, 'None')}" 
                            for skill, rating in skills.items()])
+    trending_info = f"Trending skills on X for {profession}: {', '.join(trending_skills)}"
     prompt = (
         f"You are an expert education consultant. For a '{profession}', "
         f"the user has this skill profile:\n{skill_info}\n"
+        f"Additionally, consider these trending skills from X: {trending_info}\n"
         f"Provide a detailed, personalized learning path with 3 phases (Beginner, Intermediate, Advanced). "
+        f"Incorporate the trending skills where relevant. "
         f"For each phase, recommend free online courses, books, YouTube channels, or other resources. "
         f"Include URLs where possible and explain why each resource fits."
     )
     return get_gemini_response(prompt)
 
-def export_to_pdf(name: str, profession: str, skills: dict, verification_scores: dict, recommendations: str):
+def export_to_pdf(name: str, profession: str, skills: dict, verification_scores: dict, recommendations: str, trending_skills: list):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
     styles = getSampleStyleSheet()
     
-    # Custom Styles
     header_style = ParagraphStyle('Header', parent=styles['Heading1'], fontSize=24, textColor=colors.darkblue, spaceAfter=12)
     subheader_style = ParagraphStyle('Subheader', parent=styles['Heading2'], fontSize=16, textColor=colors.grey, spaceAfter=8)
     body_style = styles['BodyText']
@@ -237,6 +277,12 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     story.append(skills_table)
     story.append(Spacer(1, 0.2*inch))
 
+    # Trending Skills from X
+    story.append(Paragraph("Trending Skills on X", subheader_style))
+    trending_text = f"For {profession}: {', '.join(trending_skills)}"
+    story.append(Paragraph(trending_text, body_style))
+    story.append(Spacer(1, 0.2*inch))
+
     # Recommendations
     story.append(Paragraph("Recommended Learning Path", subheader_style))
     phases = ["Beginner", "Intermediate", "Advanced"]
@@ -253,7 +299,7 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     story.append(Spacer(1, 0.2*inch))
 
     # Footer
-    story.append(Paragraph("Generated by Dynamic LMS © 2025", body_style))
+    story.append(Paragraph("Generated by ElevateIQ © 2025", body_style))
 
     doc.build(story)
     buffer.seek(0)
@@ -276,7 +322,6 @@ def main():
     st.title(lang["title"])
     st.write(lang["welcome"])
 
-    # Step 1: User Details Form
     if not st.session_state.form_submitted:
         st.subheader(lang["step1"])
         with st.form("user_details_form"):
@@ -291,7 +336,6 @@ def main():
     else:
         st.success(f"Hello {st.session_state.name}! Your profession: **{st.session_state.profession}**.")
 
-        # Step 2: Select and Rate Skills
         if not st.session_state.selected_skills:
             st.subheader(lang["step2"])
             st.write(lang["suggested"])
@@ -310,7 +354,6 @@ def main():
                 st.success("Skills confirmed! Now rate them.")
                 st.rerun()
 
-        # Rate Selected Skills
         elif not st.session_state.verification_questions:
             st.subheader(lang["rate"])
             for skill in st.session_state.selected_skills:
@@ -324,7 +367,6 @@ def main():
                 st.success("Ratings submitted! Verify your skills next.")
                 st.rerun()
 
-        # Step 3: Skill Verification
         elif not st.session_state.skills_verified:
             st.subheader(lang["step3"])
             st.write(lang["verify_intro"])
@@ -340,34 +382,35 @@ def main():
                 st.success("Verification complete! Check your recommendations.")
                 st.rerun()
 
-        # Step 4: Course Recommendations
         else:
             st.subheader(lang["step4"])
             with st.spinner("Generating personalized recommendations..."):
                 recommendations = get_dynamic_recommendations(
                     st.session_state.profession, st.session_state.selected_skills, 
                     st.session_state.verification_answers, st.session_state.verification_scores, 
-                    st.session_state.prerequisites
+                    st.session_state.prerequisites, st.session_state.trending_skills
                 )
-                # Convert URLs to clickable links
                 recommendations = re.sub(r'(https?://[^\s]+)', r'<a href="\1" target="_blank">\1</a>', recommendations)
             st.markdown(f"<div class='recommendations'>{recommendations}</div>", unsafe_allow_html=True)
 
-            # Interactive Filters
             filter_option = st.multiselect("Filter Recommendations", ["Free Only", "Short Courses"], key="filters")
 
-            # Community Integration (Mock X Search)
             if st.button(lang["trending"]):
-                st.write("Trending on X: (Mock) Python tutorials, AI workshops.")
+                with st.spinner("Fetching trending skills from X..."):
+                    st.session_state.trending_skills = get_trending_skills(st.session_state.profession)
+                st.write(f"Trending skills on X for {st.session_state.profession}:")
+                for skill in st.session_state.trending_skills:
+                    st.write(f"- {skill}")
+                st.info("These trending skills have been incorporated into your recommendations.")
 
-            # Export to PDF
             if st.button(lang["export"]):
                 pdf_buffer = export_to_pdf(
                     st.session_state.name,
                     st.session_state.profession,
                     st.session_state.selected_skills,
                     st.session_state.verification_scores,
-                    recommendations
+                    recommendations,
+                    st.session_state.trending_skills
                 )
                 st.download_button("Download PDF", pdf_buffer, "learning_path.pdf", "application/pdf")
 
@@ -376,7 +419,7 @@ def main():
                     del st.session_state[key]
                 st.rerun()
 
-    st.markdown("<hr style='border: 1px solid #dcdcdc;'><p style='text-align: center; color: #7f8c8d;'>Developed with 💗 by Harpinder Singh © 2025</p>", unsafe_allow_html=True)
+    st.markdown("<hr style='border: 1px solid #dcdcdc;'><p style='text-align: center; color: #7f8c8d;'>ElevatIQ | Developed with 💗 by Harpinder Singh © 2025</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
