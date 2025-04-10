@@ -209,10 +209,23 @@ def score_verification_answers(answers: dict) -> dict:
     )
     response = get_gemini_response(prompt)
     scores = {}
+    st.write("Debug: Raw Gemini Response:", response)  # Debug output to inspect the response
     for line in response.split("\n"):
-        if ": " in line:
-            skill, score = line.split(": ")
-            scores[skill.strip()] = int(score.strip())
+        line = line.strip()
+        if line and ": " in line:
+            try:
+                skill, score = line.split(": ", 1)
+                score = score.strip()
+                if score.isdigit():  # Check if score is a valid integer
+                    scores[skill.strip()] = int(score)
+                else:
+                    st.warning(f"Skipping invalid score for {skill}: '{score}' is not a number")
+            except ValueError as e:
+                st.warning(f"Error processing line '{line}': {e}")
+            except Exception as e:
+                st.error(f"Unexpected error processing line '{line}': {e}")
+    if not scores:
+        st.error("No valid scores were extracted from the Gemini response. Please check the prompt or API response.")
     return scores
 
 def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, scores: dict, prerequisites: dict, trending_skills: list) -> str:
