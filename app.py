@@ -5,6 +5,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 import io
+from reportlab.platypus import Spacer
 
 # Set page config as the first command
 st.set_page_config(page_title="Dynamic LMS", page_icon="📚")  # Branding
@@ -187,13 +188,54 @@ def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, sc
     )
     return get_gemini_response(prompt)
 
+def format_links_in_text(text):
+    """
+    Replace URLs in the text with clickable HTML-style links.
+    """
+    # Regular expression to match URLs
+    url_pattern = r'(https?://[^\s]+)'
+    # Replace URLs with clickable links in HTML-like format
+    return re.sub(url_pattern, r'<a href="\1">\1</a>', text)
+
 def export_to_pdf(content: str):
+    """
+    Generates a PDF with properly formatted content, including clickable links and styled text.
+    """
+    # Create an in-memory byte stream to hold the PDF
     buffer = io.BytesIO()
+
+    # Set up the document with a letter-sized page
     doc = SimpleDocTemplate(buffer, pagesize=letter)
+
+    # Define the styles for text
     styles = getSampleStyleSheet()
-    story = [Paragraph(content.replace("\n", "<br />"), styles["Normal"])]
+
+    # Create a list to hold the elements (text, paragraphs, etc.) for the PDF
+    story = []
+
+    # Format the content, including making links clickable
+    formatted_content = format_links_in_text(content)
+
+    # Split the content into paragraphs
+    paragraphs = formatted_content.split("\n\n")  # Split by double newlines for sections
+
+    # Add each section to the story with appropriate styling
+    for i, para in enumerate(paragraphs):
+        if i == 0:
+            # First section: Title or main header
+            story.append(Paragraph(para.strip(), styles["Title"]))
+            story.append(Spacer(1, 12))  # Add space after the title
+        else:
+            # Other sections: Normal paragraph
+            story.append(Paragraph(para.strip(), styles["Normal"]))
+            story.append(Spacer(1, 6))  # Add space between paragraphs
+
+    # Build the document
     doc.build(story)
+
+    # Reset buffer to the start
     buffer.seek(0)
+
     return buffer
 
 def render_star_rating(skill: str, rating: int):
