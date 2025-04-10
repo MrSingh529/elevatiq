@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import re
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import io
 from reportlab.platypus import Spacer
@@ -197,6 +197,15 @@ def format_links_in_text(text):
     # Replace URLs with clickable links in HTML-like format
     return re.sub(url_pattern, r'<a href="\1">\1</a>', text)
 
+def sanitize_html(text: str) -> str:
+    """
+    This function will sanitize the HTML tags and escape them
+    so that they are not rendered directly in the PDF.
+    """
+    # Remove any potentially harmful HTML tags
+    clean_text = re.sub(r'<.*?>', '', text)
+    return clean_text
+
 def export_to_pdf(content: str):
     """
     Generates a PDF with properly formatted content, including clickable links and styled text.
@@ -216,8 +225,11 @@ def export_to_pdf(content: str):
     # Format the content, including making links clickable
     formatted_content = format_links_in_text(content)
 
+    # Sanitize the formatted content to remove any HTML tags
+    sanitized_content = sanitize_html(formatted_content)
+
     # Split the content into paragraphs
-    paragraphs = formatted_content.split("\n\n")  # Split by double newlines for sections
+    paragraphs = sanitized_content.split("\n\n")  # Split by double newlines for sections
 
     # Add each section to the story with appropriate styling
     for i, para in enumerate(paragraphs):
