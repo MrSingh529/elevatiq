@@ -413,7 +413,82 @@ def main():
                     st.session_state.prerequisites, st.session_state.trending_skills
                 )
                 recommendations = re.sub(r'(https?://[^\s]+)', r'<a href="\1" target="_blank">\1</a>', recommendations)
-            st.markdown(f"<div class='recommendations'>{recommendations}</div>", unsafe_allow_html=True)
+
+            # Custom CSS for better visuals
+            st.markdown("""
+                <style>
+                .recommendations {
+                    background-color: #ffffff;
+                    padding: 15px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    margin-top: 20px;
+                }
+                .phase-header {
+                    font-size: 1.5em;
+                    font-weight: 600;
+                    color: #2c3e50;
+                    margin-bottom: 10px;
+                }
+                .skill-item {
+                    margin-bottom: 10px;
+                    padding: 10px;
+                    background-color: #f9f9f9;
+                    border-left: 4px solid #3498db;
+                    border-radius: 5px;
+                }
+                .skill-title {
+                    font-weight: 500;
+                    color: #34495e;
+                }
+                .resource-details {
+                    color: #7f8c8d;
+                    font-size: 0.9em;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
+            # Parse and display recommendations
+            st.markdown("<div class='recommendations'>", unsafe_allow_html=True)
+            phases = {"Beginner": None, "Intermediate": None, "Advanced": None}
+            current_phase = None
+            phase_content = {"Beginner": [], "Intermediate": [], "Advanced": []}
+
+            for line in recommendations.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                for phase in phases.keys():
+                    if phase.lower() in line.lower():
+                        current_phase = phase
+                        phases[phase] = st.expander(f"{phase} Phase", expanded=True)
+                        break
+                if current_phase and line:
+                    phase_content[current_phase].append(line)
+
+            for phase, expander in phases.items():
+                if expander:
+                    with expander:
+                        if phase_content[phase]:
+                            st.markdown(f"<div class='phase-header'>{phase_content[phase][0]}</div>", unsafe_allow_html=True)
+                            for item in phase_content[phase][1:]:
+                                if ": " in item:
+                                    skill, details = item.split(": ", 1)
+                                    resource_type, resource_name, url, rationale = [d.strip() for d in details.split(" | ")]
+                                    st.markdown(f"""
+                                        <div class='skill-item'>
+                                            <div class='skill-title'>{skill}</div>
+                                            <div class='resource-details'>
+                                                <strong>Type:</strong> {resource_type}<br>
+                                                <strong>Resource:</strong> {resource_name} {url}<br>
+                                                <strong>Rationale:</strong> {rationale}
+                                            </div>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                        else:
+                            st.write("No recommendations available for this phase.")
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
             filter_option = st.multiselect("Filter Recommendations", ["Free Only", "Short Courses"], key="filters")
 
