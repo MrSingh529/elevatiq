@@ -12,9 +12,12 @@ import io
 # Set page config as the first command
 st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
 
-# Load Custom CSS from external file
-with open("styles.css", "r") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+# Load Custom CSS from external file (with fallback)
+try:
+    with open("styles.css", "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+except FileNotFoundError:
+    st.markdown("<style>.stApp { visibility: hidden; }</style>", unsafe_allow_html=True)
 
 # Add custom splash screen and animation CSS/JavaScript
 st.markdown("""
@@ -23,6 +26,7 @@ st.markdown("""
         .stApp {
             visibility: hidden;
             opacity: 0;
+            transition: opacity 1s ease-out;
         }
         .sidebar .stSidebar {
             display: none;
@@ -48,7 +52,7 @@ st.markdown("""
             position: relative;
             width: 250px;
             height: 250px;
-            animation: float 3s ease-in-out infinite, rotateGlow 6s linear infinite;
+            animation: float 3s ease-in-out infinite;
         }
 
         .logo-animation {
@@ -57,29 +61,9 @@ st.markdown("""
             object-fit: contain;
         }
 
-        .glow {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(76, 81, 191, 0.4) 0%, rgba(76, 81, 191, 0) 70%);
-            border-radius: 50%;
-            animation: pulse 2s infinite alternate;
-            opacity: 0.8;
-        }
-
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
-        }
-
-        @keyframes rotateGlow {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.8; }
-            100% { transform: scale(1.2); opacity: 0.4; }
         }
 
         /* Transition to main content */
@@ -101,14 +85,14 @@ st.markdown("""
     </style>
     <div class="splash-screen" id="splash">
         <div class="logo-container">
-            <div class="glow"></div>
-            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation" onerror="this.src='https://via.placeholder.com/250?text=Logo+Loading';">
+            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation" onerror="this.src='https://via.placeholder.com/250?text=Logo+Loading'; console.log('Logo failed, using placeholder');">
         </div>
         <p style="color: #4c51bf; font-size: 28px; font-weight: 600; margin-top: 20px; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">Launching ElevatIQ...</p>
     </div>
     <script>
-        // Hide splash screen and show main content after 4 seconds
+        console.log("Script loaded");
         setTimeout(function() {
+            console.log("Transitioning to main content");
             document.getElementById('splash').classList.add('fade-out');
             document.querySelector('.stApp').classList.add('fade-in');
             document.querySelector('.sidebar .stSidebar').style.display = 'block';
@@ -433,7 +417,7 @@ def main():
     st.title(lang["title"])
     st.write(lang["welcome"])
 
-    # Progress Tracker (Fixed Syntax)
+    # Progress Tracker
     progress_steps = ["Details", "Skills", "Rate Skills", "Verify Skills", "Recommendations"]
     current_step = 0
     if st.session_state.form_submitted:
