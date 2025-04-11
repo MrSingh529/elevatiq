@@ -474,17 +474,25 @@ def main():
                             for item in phase_content[phase][1:]:
                                 if ": " in item:
                                     skill, details = item.split(": ", 1)
-                                    resource_type, resource_name, url, rationale = [d.strip() for d in details.split(" | ")]
-                                    st.markdown(f"""
-                                        <div class='skill-item'>
-                                            <div class='skill-title'>{skill}</div>
-                                            <div class='resource-details'>
-                                                <strong>Type:</strong> {resource_type}<br>
-                                                <strong>Resource:</strong> {resource_name} {url}<br>
-                                                <strong>Rationale:</strong> {rationale}
+                                    # Split details and handle variable number of segments
+                                    parts = [d.strip() for d in details.split(" | ")]
+                                    if len(parts) >= 3:  # Ensure at least resource type, name, and rationale
+                                        resource_type = parts[0]
+                                        resource_name = parts[1]
+                                        url = parts[2] if len(parts) > 2 and parts[2] else "N/A"
+                                        rationale = parts[3] if len(parts) > 3 else "No rationale provided"
+                                        st.markdown(f"""
+                                            <div class='skill-item'>
+                                                <div class='skill-title'>{skill}</div>
+                                                <div class='resource-details'>
+                                                    <strong>Type:</strong> {resource_type}<br>
+                                                    <strong>Resource:</strong> {resource_name} {f'({url})' if url != "N/A" else ''}<br>
+                                                    <strong>Rationale:</strong> {rationale}
+                                                </div>
                                             </div>
-                                        </div>
-                                    """, unsafe_allow_html=True)
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.warning(f"Skipping malformed recommendation: {item}")
                         else:
                             st.write("No recommendations available for this phase.")
 
