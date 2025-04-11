@@ -571,6 +571,9 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
+    # Test CSS Application
+    st.markdown("<div style='color: #4c51bf; font-size: 24px; padding: 10px; background: #f7fafc; border-radius: 8px;'>This is a test to confirm CSS is working!</div>", unsafe_allow_html=True)
+
     # Step 1: User Details
     if not st.session_state.form_submitted:
         st.subheader(lang["step1"])
