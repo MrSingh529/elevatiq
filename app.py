@@ -20,46 +20,77 @@ with open("styles.css", "r") as f:
 # Add custom splash screen and animation CSS/JavaScript
 st.markdown("""
     <style>
+        /* Hide sidebar and main content initially */
+        .stApp {
+            visibility: hidden;
+        }
+        .sidebar .stSidebar {
+            display: none;
+        }
+
+        /* Splash screen styles */
         .splash-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #ffffff;
+            background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
             z-index: 1000;
-            animation: fadeOut 1s ease-in-out forwards;
-            animation-delay: 3s;
+            transition: opacity 1s ease-out;
+        }
+
+        .logo-container {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            animation: float 3s ease-in-out infinite, rotateGlow 6s linear infinite;
         }
 
         .logo-animation {
-            width: 200px;
-            height: 200px;
-            animation: pulse 1.5s infinite alternate, rotate 4s linear infinite;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(76, 81, 191, 0.4) 0%, rgba(76, 81, 191, 0) 70%);
+            border-radius: 50%;
+            animation: pulse 2s infinite alternate;
+            opacity: 0.8;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes rotateGlow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         @keyframes pulse {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.2); opacity: 0.4; }
         }
 
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeOut {
-            to { opacity: 0; visibility: hidden; }
-        }
-
-        .main-content {
+        /* Transition to main content */
+        .splash-screen.fade-out {
             opacity: 0;
+            visibility: hidden;
+        }
+
+        .stApp.fade-in {
+            visibility: visible;
             animation: fadeIn 1s ease-in-out forwards;
-            animation-delay: 3.5s;
         }
 
         @keyframes fadeIn {
@@ -67,10 +98,21 @@ st.markdown("""
             to { opacity: 1; }
         }
     </style>
-    <div class="splash-screen">
-        <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation">
-        <p style="color: #4c51bf; font-size: 24px; margin-top: 20px;">Loading ElevatIQ...</p>
+    <div class="splash-screen" id="splash">
+        <div class="logo-container">
+            <div class="glow"></div>
+            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation">
+        </div>
+        <p style="color: #4c51bf; font-size: 28px; font-weight: 600; margin-top: 20px; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">Launching ElevatIQ...</p>
     </div>
+    <script>
+        // Hide splash screen and show main content after 4 seconds
+        setTimeout(function() {
+            document.getElementById('splash').classList.add('fade-out');
+            document.querySelector('.stApp').classList.add('fade-in');
+            document.querySelector('.sidebar .stSidebar').style.display = 'block';
+        }, 4000);
+    </script>
     <div class="main-content">
 """, unsafe_allow_html=True)
 
@@ -123,7 +165,7 @@ def get_trending_skills(profession: str) -> list:
 # Language Support
 LANGUAGES = {
     "English": {
-        "title": "ElevatIQ",
+        "title": "Your Personalized Learning Journey",
         "sidebar": "ElevatIQ",
         "welcome": "Tell us about yourself, assess your skills, and get tailored course recommendations.",
         "step1": "Step 1: Enter Your Details",
