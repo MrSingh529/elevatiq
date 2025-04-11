@@ -39,15 +39,6 @@ GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 client = tweepy.Client(bearer_token=st.secrets["x_api"]["bearer_token"])
 
-# X API Setup
-X_API_KEY = st.secrets["x_api"]["api_key"]
-X_API_SECRET = st.secrets["x_api"]["api_secret"]
-X_BEARER_TOKEN = st.secrets["x_api"]["bearer_token"]
-
-auth = tweepy.OAuthHandler(X_API_KEY, X_API_SECRET)
-auth.set_access_token(X_API_KEY, X_API_SECRET)  # Note: For Bearer Token, use tweepy.Client instead if needed
-api = tweepy.API(auth)
-
 def get_gemini_response(prompt: str) -> str:
     headers = {"Content-Type": "application/json"}
     body = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -60,10 +51,9 @@ def get_gemini_response(prompt: str) -> str:
     except Exception as e:
         return f"Error: {e}"
 
-# Function to Fetch Trending Skills from X
 def get_trending_skills(profession: str) -> list:
     try:
-        query = f"trending skills {profession} -filter:retweets"
+        query = f"trending skills {profession} -is:retweet"
         tweets = client.search_recent_tweets(query=query, max_results=50, tweet_fields=["created_at"])
 
         skill_keywords = ["python", "javascript", "java", "cloud", "ai", "machine learning", "data analysis", "devops", "design"]
@@ -205,10 +195,15 @@ def get_verification_questions_and_prerequisites(skills: dict) -> tuple:
     return questions, prerequisites
 
 def score_verification_answers(answers: dict) -> dict:
+    if not answers:
+        st.error("No verification answers provided. Please enter answers for each skill.")
+        return {}
+    
     prompt = (
-        f"You are an expert assessor. Evaluate these verification answers for a {st.session_state.profession}:\n" +
+        f"You are an expert assessor. You are given the following verification answers for a {st.session_state.profession}. "
+        f"Evaluate each answer based on depth and relevance and score it out of 10. The answers are:\n" +
         "\n".join([f"{skill}: {answer}" for skill, answer in answers.items()]) +
-        "\nScore each answer out of 10 based on depth and relevance. Return in format: 'Skill: Score' (one per line)."
+        "\nReturn the scores in the format: 'Skill: Score' (one per line), where Score is a single integer (e.g., 'Prioritization: 7')."
     )
     response = get_gemini_response(prompt)
     scores = {}
