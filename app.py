@@ -564,11 +564,17 @@ def main():
                 current_step = 3
                 if st.session_state.skills_verified:
                     current_step = 4
-    st.markdown("""
+
+    steps_html = "".join([
+        f"<div style='flex: 1; text-align: center; padding: 10px; background: {'#4c51bf' if i <= current_step else '#e2e8f0'}; color: {'#ffffff' if i <= current_step else '#4a5568'}; border-radius: 8px; margin: 0 5px;'>{step}</div>"
+        for i, step in enumerate(progress_steps)
+    ])
+
+    st.markdown(f"""
         <div style='display: flex; justify-content: space-between; margin: 20px 0;'>
-            {steps}
+            {steps_html}
         </div>
-    """.format(steps="".join([f"<div style='flex: 1; text-align: center; padding: 10px; background: {'#4c51bf' if i <= current_step else '#e2e8f0'}; color: {'#ffffff' if i <= current_step else '#4a5568'}; border-radius: 8px; margin: 0 5px;'>{step}</div>" for i, step in enumerate(progress_steps)]))), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # Step 1: User Details
     if not st.session_state.form_submitted:
