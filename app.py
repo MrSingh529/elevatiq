@@ -8,7 +8,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
-import time
 
 # Set page config as the first command
 st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
@@ -23,6 +22,7 @@ st.markdown("""
         /* Hide sidebar and main content initially */
         .stApp {
             visibility: hidden;
+            opacity: 0;
         }
         .sidebar .stSidebar {
             display: none;
@@ -90,6 +90,7 @@ st.markdown("""
 
         .stApp.fade-in {
             visibility: visible;
+            opacity: 1;
             animation: fadeIn 1s ease-in-out forwards;
         }
 
@@ -101,7 +102,7 @@ st.markdown("""
     <div class="splash-screen" id="splash">
         <div class="logo-container">
             <div class="glow"></div>
-            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation">
+            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation" onerror="this.src='https://via.placeholder.com/250?text=Logo+Loading';">
         </div>
         <p style="color: #4c51bf; font-size: 28px; font-weight: 600; margin-top: 20px; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">Launching ElevatIQ...</p>
     </div>
