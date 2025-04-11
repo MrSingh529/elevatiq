@@ -8,6 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
+import time
 
 # Set page config as the first command
 st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
@@ -15,6 +16,63 @@ st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
 # Load Custom CSS from external file
 with open("styles.css", "r") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Add custom splash screen and animation CSS/JavaScript
+st.markdown("""
+    <style>
+        .splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+            animation: fadeOut 1s ease-in-out forwards;
+            animation-delay: 3s;
+        }
+
+        .logo-animation {
+            width: 200px;
+            height: 200px;
+            animation: pulse 1.5s infinite alternate, rotate 4s linear infinite;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        .main-content {
+            opacity: 0;
+            animation: fadeIn 1s ease-in-out forwards;
+            animation-delay: 3.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+    <div class="splash-screen">
+        <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation">
+        <p style="color: #4c51bf; font-size: 24px; margin-top: 20px;">Loading ElevatIQ...</p>
+    </div>
+    <div class="main-content">
+""", unsafe_allow_html=True)
 
 # Google Gemini API Setup
 GEMINI_API_KEY = st.secrets["api_keys"]["gemini_api_key"]
@@ -65,7 +123,7 @@ def get_trending_skills(profession: str) -> list:
 # Language Support
 LANGUAGES = {
     "English": {
-        "title": "Your Personalized Learning Journey",
+        "title": "ElevatIQ",
         "sidebar": "ElevatIQ",
         "welcome": "Tell us about yourself, assess your skills, and get tailored course recommendations.",
         "step1": "Step 1: Enter Your Details",
@@ -524,6 +582,7 @@ def main():
 
     # Footer
     st.markdown("""
+        </div>
         <footer>
             <hr style='border: 1px solid #dcdcdc;'>
             <p>ElevatIQ | Developed with 💗 by Harpinder Singh © 2025</p>
