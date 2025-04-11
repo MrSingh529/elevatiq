@@ -234,14 +234,17 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     from reportlab.lib.units import inch
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer,
-                            pagesize=letter,
-                            topMargin=0.75 * inch,
-                            bottomMargin=0.75 * inch,
-                            rightMargin=0.75 * inch,
-                            leftMargin=0.75 * inch)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+        leftMargin=0.75 * inch
+    )
     styles = getSampleStyleSheet()
 
+    # Define styles for different sections
     header_style = ParagraphStyle(
         'Header',
         parent=styles['Heading1'],
@@ -256,7 +259,8 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
         fontSize=16,
         textColor=colors.grey,
         spaceAfter=10,
-        fontName='Helvetica'
+        fontName='Helvetica',
+        leading=20
     )
     body_style = ParagraphStyle(
         'Body',
@@ -269,7 +273,7 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
 
     story = []
 
-    # Header
+    # Header Section with Logo and Titles
     try:
         logo = Image("assets/images/logo.png", width=1.2 * inch, height=1.2 * inch)
         story.append(logo)
@@ -279,7 +283,7 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     story.append(Paragraph("Empowering Your Career Growth", body_style))
     story.append(Spacer(1, 0.3 * inch))
 
-    # User Details
+    # User Details Section
     story.append(Paragraph(f"Prepared for: {name}", subheader_style))
     story.append(Paragraph(f"Profession: {profession}", body_style))
     story.append(Spacer(1, 0.25 * inch))
@@ -297,7 +301,6 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ])
@@ -305,50 +308,49 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     story.append(skills_table)
     story.append(Spacer(1, 0.25 * inch))
 
-    # Trending Skills
+    # Trending Skills Section
     story.append(Paragraph("Trending Skills on X", subheader_style))
-    trending_text = f"For {profession}: {', '.join(trending_skills) if trending_skills and trending_skills[0] != 'Error fetching trends' else 'No trending skills available'}"
+    trending_text = f"For {profession}: " + (
+        ', '.join(trending_skills)
+        if trending_skills and trending_skills[0] != "Error fetching trends"
+        else "No trending skills available"
+    )
     story.append(Paragraph(trending_text, body_style))
     story.append(Spacer(1, 0.25 * inch))
 
-    # Recommendations: Grouped into phases with bullet lists
+    # Recommendations Section
     story.append(Paragraph("Recommended Learning Path", subheader_style))
 
-    # Prepare recommendations grouped by phase.
-    # The Gemini response is expected to use a "- Phase:" header for each phase followed by bullet items.
-    lines = recommendations.split("\n")
+    # Parse recommendations into phases based on "- Phase:" headers
+    # If no phase header is found, assign to "General Recommendations"
     phase_sections = {}
-    current_phase = None
-    for line in lines:
+    current_phase = "General Recommendations"
+    phase_sections[current_phase] = []
+    for line in recommendations.split("\n"):
         line = line.strip()
         if not line:
             continue
-        # Identify phase header (e.g., "- Phase: Beginner - 4 Weeks")
         if line.lower().startswith("- phase:"):
-            # Remove the leading hyphen and extra whitespace
+            # Remove the leading hyphen and any extraneous whitespace
             current_phase = line[1:].strip()
-            phase_sections[current_phase] = []
+            if current_phase not in phase_sections:
+                phase_sections[current_phase] = []
         else:
-            # If no phase has been set yet, assign to a general phase
-            if current_phase is None:
-                current_phase = "General Recommendations"
-                if current_phase not in phase_sections:
-                    phase_sections[current_phase] = []
-            # Remove a leading bullet marker if present
-            if line.startswith("- "):
-                bullet_text = line[2:].strip()
-            else:
-                bullet_text = line
+            # Remove common bullet markers if present
+            bullet_text = line.lstrip("-").strip()
             phase_sections[current_phase].append(bullet_text)
 
-    # Add each phase and its recommendations as a bullet list
+    # Add each phase and its bullet list of recommendations
     for phase, items in phase_sections.items():
         story.append(Paragraph(phase, subheader_style))
-        bullet_items = [ListItem(Paragraph(item, body_style)) for item in items]
-        story.append(ListFlowable(bullet_items, bulletType='bullet', leftIndent=20))
+        if items:
+            bullet_items = [ListItem(Paragraph(item, body_style), leftIndent=10) for item in items]
+            story.append(ListFlowable(bullet_items, bulletType='bullet', start='circle', leftIndent=20))
+        else:
+            story.append(Paragraph("No recommendations available for this phase.", body_style))
         story.append(Spacer(1, 0.15 * inch))
 
-    # Footer
+    # Footer Section
     story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph("Generated by ElevatIQ | © 2025 ElevatIQ", body_style))
 
