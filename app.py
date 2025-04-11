@@ -37,6 +37,8 @@ st.markdown("""
 GEMINI_API_KEY = st.secrets["api_keys"]["gemini_api_key"]
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
+client = tweepy.Client(bearer_token=st.secrets["x_api"]["bearer_token"])
+
 # X API Setup
 X_API_KEY = st.secrets["x_api"]["api_key"]
 X_API_SECRET = st.secrets["x_api"]["api_secret"]
@@ -61,17 +63,15 @@ def get_gemini_response(prompt: str) -> str:
 # Function to Fetch Trending Skills from X
 def get_trending_skills(profession: str) -> list:
     try:
-        # Use X API to search for trending topics or skills (simplified example)
         query = f"trending skills {profession} -filter:retweets"
-        tweets = api.search_tweets(q=query, count=50, lang="en", tweet_mode="extended")
-        
-        # Extract skills from tweets (basic keyword matching)
+        tweets = client.search_recent_tweets(query=query, max_results=50, tweet_fields=["created_at"])
+
         skill_keywords = ["python", "javascript", "java", "cloud", "ai", "machine learning", "data analysis", "devops", "design"]
         trending_skills = []
         skill_count = {}
 
-        for tweet in tweets:
-            text = tweet.full_text.lower()
+        for tweet in tweets.data or []:
+            text = tweet.text.lower()
             for skill in skill_keywords:
                 if skill in text and skill not in trending_skills:
                     skill_count[skill] = skill_count.get(skill, 0) + 1
@@ -79,10 +79,13 @@ def get_trending_skills(profession: str) -> list:
                         trending_skills.append(skill.title())
 
         if not trending_skills:
-            trending_skills = ["No trending skills found"]  # Fallback
-        return trending_skills[:5]  # Limit to 5 skills
-    except Exception as e:
+            trending_skills = ["No trending skills found"]
+        return trending_skills[:5]
+    except tweepy.TweepyException as e:
         st.error(f"Error fetching trending skills from X: {e}")
+        return ["Error fetching trends"]
+    except Exception as e:
+        st.error(f"Unexpected error fetching trending skills from X: {e}")
         return ["Error fetching trends"]
 
 # Language Support (unchanged)
