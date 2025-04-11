@@ -226,37 +226,70 @@ def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, sc
     return get_gemini_response(prompt)
 
 def export_to_pdf(name: str, profession: str, skills: dict, verification_scores: dict, recommendations: str, trending_skills: list):
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, ListFlowable, ListItem
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch, rightMargin=0.75*inch, leftMargin=0.75*inch)
+    doc = SimpleDocTemplate(buffer,
+                            pagesize=letter,
+                            topMargin=0.75 * inch,
+                            bottomMargin=0.75 * inch,
+                            rightMargin=0.75 * inch,
+                            leftMargin=0.75 * inch)
     styles = getSampleStyleSheet()
-    
-    header_style = ParagraphStyle('Header', parent=styles['Heading1'], fontSize=26, textColor=colors.Color(76/255, 81/255, 191/255), spaceAfter=15, fontName='Helvetica-Bold')
-    subheader_style = ParagraphStyle('Subheader', parent=styles['Heading2'], fontSize=16, textColor=colors.grey, spaceAfter=10, fontName='Helvetica')
-    body_style = ParagraphStyle('Body', parent=styles['BodyText'], fontSize=11, textColor=colors.black, leading=14, fontName='Helvetica')
-    
+
+    header_style = ParagraphStyle(
+        'Header',
+        parent=styles['Heading1'],
+        fontSize=26,
+        textColor=colors.Color(76/255, 81/255, 191/255),
+        spaceAfter=15,
+        fontName='Helvetica-Bold'
+    )
+    subheader_style = ParagraphStyle(
+        'Subheader',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.grey,
+        spaceAfter=10,
+        fontName='Helvetica'
+    )
+    body_style = ParagraphStyle(
+        'Body',
+        parent=styles['BodyText'],
+        fontSize=11,
+        textColor=colors.black,
+        leading=14,
+        fontName='Helvetica'
+    )
+
     story = []
 
     # Header
     try:
-        logo = Image("assets/images/logo.png", width=1.2*inch, height=1.2*inch)
+        logo = Image("assets/images/logo.png", width=1.2 * inch, height=1.2 * inch)
         story.append(logo)
-    except:
+    except Exception:
         story.append(Paragraph("ElevatIQ", header_style))
     story.append(Paragraph("Your Personalized Learning Path", header_style))
     story.append(Paragraph("Empowering Your Career Growth", body_style))
-    story.append(Spacer(1, 0.3*inch))
+    story.append(Spacer(1, 0.3 * inch))
 
     # User Details
     story.append(Paragraph(f"Prepared for: {name}", subheader_style))
     story.append(Paragraph(f"Profession: {profession}", body_style))
-    story.append(Spacer(1, 0.25*inch))
+    story.append(Spacer(1, 0.25 * inch))
 
     # Skills Table
     skills_data = [["Skill", "Self-Rating", "Verification Score"]]
     for skill, rating in skills.items():
         v_score = verification_scores.get(skill, "N/A")
         skills_data.append([skill, f"{rating}/10", f"{v_score}/10" if v_score != "N/A" else "N/A"])
-    skills_table = Table(skills_data, colWidths=[2.5*inch, 1.2*inch, 1.3*inch])
+    skills_table = Table(skills_data, colWidths=[2.5 * inch, 1.2 * inch, 1.3 * inch])
     skills_table.setStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(76/255, 81/255, 191/255)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -270,32 +303,53 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     ])
     story.append(Paragraph("Your Skill Profile", subheader_style))
     story.append(skills_table)
-    story.append(Spacer(1, 0.25*inch))
+    story.append(Spacer(1, 0.25 * inch))
 
     # Trending Skills
     story.append(Paragraph("Trending Skills on X", subheader_style))
     trending_text = f"For {profession}: {', '.join(trending_skills) if trending_skills and trending_skills[0] != 'Error fetching trends' else 'No trending skills available'}"
     story.append(Paragraph(trending_text, body_style))
-    story.append(Spacer(1, 0.25*inch))
+    story.append(Spacer(1, 0.25 * inch))
 
-    # Recommendations
+    # Recommendations: Grouped into phases with bullet lists
     story.append(Paragraph("Recommended Learning Path", subheader_style))
-    phases = ["Beginner", "Intermediate", "Advanced"]
+
+    # Prepare recommendations grouped by phase.
+    # The Gemini response is expected to use a "- Phase:" header for each phase followed by bullet items.
+    lines = recommendations.split("\n")
+    phase_sections = {}
     current_phase = None
-    for line in recommendations.split("\n"):
+    for line in lines:
         line = line.strip()
         if not line:
             continue
-        if any(phase.lower() in line.lower() for phase in phases):
-            current_phase = next((phase for phase in phases if phase.lower() in line.lower()), None)
-            story.append(Paragraph(line, subheader_style))
-        elif current_phase:
-            story.append(Paragraph(line.replace("\n", "<br />"), body_style))
+        # Identify phase header (e.g., "- Phase: Beginner - 4 Weeks")
+        if line.lower().startswith("- phase:"):
+            # Remove the leading hyphen and extra whitespace
+            current_phase = line[1:].strip()
+            phase_sections[current_phase] = []
         else:
-            story.append(Paragraph(line.replace("\n", "<br />"), body_style))
-    story.append(Spacer(1, 0.25*inch))
+            # If no phase has been set yet, assign to a general phase
+            if current_phase is None:
+                current_phase = "General Recommendations"
+                if current_phase not in phase_sections:
+                    phase_sections[current_phase] = []
+            # Remove a leading bullet marker if present
+            if line.startswith("- "):
+                bullet_text = line[2:].strip()
+            else:
+                bullet_text = line
+            phase_sections[current_phase].append(bullet_text)
+
+    # Add each phase and its recommendations as a bullet list
+    for phase, items in phase_sections.items():
+        story.append(Paragraph(phase, subheader_style))
+        bullet_items = [ListItem(Paragraph(item, body_style)) for item in items]
+        story.append(ListFlowable(bullet_items, bulletType='bullet', leftIndent=20))
+        story.append(Spacer(1, 0.15 * inch))
 
     # Footer
+    story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph("Generated by ElevatIQ | © 2025 ElevatIQ", body_style))
 
     doc.build(story)
