@@ -8,74 +8,58 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
+import time
 
 # Set page config as the first command
 st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
 
-# Load Custom CSS from external file (with fallback)
-try:
-    with open("styles.css", "r") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-except FileNotFoundError:
-    st.markdown("<style>.stApp { visibility: hidden; }</style>", unsafe_allow_html=True)
+# Load Custom CSS from external file
+with open("styles.css", "r") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # Add custom splash screen and animation CSS/JavaScript
 st.markdown("""
     <style>
-        /* Hide sidebar and main content initially */
-        .stApp {
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity 1s ease-out;
-        }
-        .sidebar .stSidebar {
-            display: none;
-        }
-
-        /* Splash screen styles */
         .splash-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+            background: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
             z-index: 1000;
-            transition: opacity 1s ease-out;
-        }
-
-        .logo-container {
-            position: relative;
-            width: 250px;
-            height: 250px;
-            animation: float 3s ease-in-out infinite;
+            animation: fadeOut 1s ease-in-out forwards;
+            animation-delay: 3s;
         }
 
         .logo-animation {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
+            width: 200px;
+            height: 200px;
+            animation: pulse 1.5s infinite alternate, rotate 4s linear infinite;
         }
 
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
         }
 
-        /* Transition to main content */
-        .splash-screen.fade-out {
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        .main-content {
             opacity: 0;
-            visibility: hidden;
-        }
-
-        .stApp.fade-in {
-            visibility: visible;
-            opacity: 1;
             animation: fadeIn 1s ease-in-out forwards;
+            animation-delay: 3.5s;
         }
 
         @keyframes fadeIn {
@@ -83,21 +67,10 @@ st.markdown("""
             to { opacity: 1; }
         }
     </style>
-    <div class="splash-screen" id="splash">
-        <div class="logo-container">
-            <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation" onerror="this.src='https://via.placeholder.com/250?text=Logo+Loading'; console.log('Logo failed, using placeholder');">
-        </div>
-        <p style="color: #4c51bf; font-size: 28px; font-weight: 600; margin-top: 20px; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">Launching ElevatIQ...</p>
+    <div class="splash-screen">
+        <img src="https://raw.githubusercontent.com/MrSingh529/elevatiq/main/assets/images/logo.png" alt="ElevatIQ Logo" class="logo-animation">
+        <p style="color: #4c51bf; font-size: 24px; margin-top: 20px;">Loading ElevatIQ...</p>
     </div>
-    <script>
-        console.log("Script loaded");
-        setTimeout(function() {
-            console.log("Transitioning to main content");
-            document.getElementById('splash').classList.add('fade-out');
-            document.querySelector('.stApp').classList.add('fade-in');
-            document.querySelector('.sidebar .stSidebar').style.display = 'block';
-        }, 4000);
-    </script>
     <div class="main-content">
 """, unsafe_allow_html=True)
 
@@ -417,7 +390,7 @@ def main():
     st.title(lang["title"])
     st.write(lang["welcome"])
 
-    # Progress Tracker
+    # Progress Tracker (Fixed Syntax)
     progress_steps = ["Details", "Skills", "Rate Skills", "Verify Skills", "Recommendations"]
     current_step = 0
     if st.session_state.form_submitted:
