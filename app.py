@@ -9,20 +9,15 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
 import time
-from sqlalchemy import create_engine, Column, Integer, String, JSON, Float, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import pandas as pd
-import plotly.express as px
 
-# Set page config
+# Set page config as the first command
 st.set_page_config(page_title="ElevatIQ", page_icon="📚", layout="wide")
 
-# Load Custom CSS
+# Load Custom CSS from external file
 with open("styles.css", "r") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Splash Screen
+# Add custom splash screen and animation CSS/JavaScript
 st.markdown("""
     <style>
         .splash-screen {
@@ -40,27 +35,33 @@ st.markdown("""
             animation: fadeOut 1s ease-in-out forwards;
             animation-delay: 3s;
         }
+
         .logo-animation {
             width: 200px;
             height: 200px;
             animation: pulse 1.5s infinite alternate, rotate 4s linear infinite;
         }
+
         @keyframes pulse {
             from { transform: scale(1); }
             to { transform: scale(1.1); }
         }
+
         @keyframes rotate {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
         @keyframes fadeOut {
             to { opacity: 0; visibility: hidden; }
         }
+
         .main-content {
             opacity: 0;
             animation: fadeIn 1s ease-in-out forwards;
             animation-delay: 3.5s;
         }
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -73,51 +74,11 @@ st.markdown("""
     <div class="main-content">
 """, unsafe_allow_html=True)
 
-# Database Setup
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    email = Column(String, unique=True)
-    profession = Column(String)
-
-class Course(Base):
-    __tablename__ = 'courses'
-    id = Column(Integer, primary_key=True)
-    title = Column(String)
-    description = Column(String)
-    content = Column(JSON)  # List of modules
-
-class Progress(Base):
-    __tablename__ = 'progress'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
-    course_id = Column(Integer, ForeignKey('courses.id'))
-    completion = Column(Float)
-
-class Badge(Base):
-    __tablename__ = 'badges'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
-    badge_name = Column(String)
-
-class Post(Base):
-    __tablename__ = 'posts'
-    id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey('courses.id'))
-    user_id = Column(Integer, ForeignKey('users.id'))
-    content = Column(String)
-
-engine = create_engine('sqlite:///elevatiq.db')
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-
-# API Setup
-GEMINI_API_KEY = st.secrets.get("api_keys", {}).get("gemini_api_key", "your_key_here")
+# Google Gemini API Setup
+GEMINI_API_KEY = st.secrets["api_keys"]["gemini_api_key"]
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-client = tweepy.Client(bearer_token=st.secrets.get("x_api", {}).get("bearer_token", "your_token_here"))
+
+client = tweepy.Client(bearer_token=st.secrets["x_api"]["bearer_token"])
 
 @st.cache_data
 def get_gemini_response(prompt: str) -> str:
@@ -125,29 +86,38 @@ def get_gemini_response(prompt: str) -> str:
     body = {"contents": [{"parts": [{"text": prompt}]}]}
     try:
         response = requests.post(GEMINI_ENDPOINT, headers=headers, json=body)
-        response.raise_for_status()
-        return response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if response.status_code == 200:
+            return response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        else:
+            return f"Error: Received status code {response.status_code}"
     except Exception as e:
-        st.error(f"Error with Gemini API: {e}")
-        return "Error fetching response"
+        return f"Error: {e}"
 
 def get_trending_skills(profession: str) -> list:
     try:
         query = f"trending skills {profession} -is:retweet"
         tweets = client.search_recent_tweets(query=query, max_results=50, tweet_fields=["created_at"])
+
         skill_keywords = ["python", "javascript", "java", "cloud", "ai", "machine learning", "data analysis", "devops", "design"]
-        skill_count = {}
         trending_skills = []
+        skill_count = {}
+
         for tweet in tweets.data or []:
             text = tweet.text.lower()
             for skill in skill_keywords:
-                if skill in text:
+                if skill in text and skill not in trending_skills:
                     skill_count[skill] = skill_count.get(skill, 0) + 1
                     if skill_count[skill] > 1 and len(trending_skills) < 5:
                         trending_skills.append(skill.title())
-        return trending_skills or ["No trending skills found"]
+
+        if not trending_skills:
+            trending_skills = ["No trending skills found"]
+        return trending_skills[:5]
+    except tweepy.TweepyException as e:
+        st.error(f"Error fetching trending skills from X: {e}")
+        return ["Error fetching trends"]
     except Exception as e:
-        st.error(f"Error fetching trends: {e}")
+        st.error(f"Unexpected error fetching trending skills from X: {e}")
         return ["Error fetching trends"]
 
 # Language Support
@@ -171,10 +141,7 @@ LANGUAGES = {
         "step4": "Step 4: Your Course Recommendations",
         "start_over": "Start Over",
         "export": "Export as PDF",
-        "trending": "See Trending Skills on X",
-        "courses": "Manage Courses",
-        "dashboard": "Learner Dashboard",
-        "discussion": "Discussion Board"
+        "trending": "See Trending Skills on X"
     },
     "Hindi": {
         "title": "आपकी व्यक्तिगत शिक्षण यात्रा",
@@ -195,16 +162,12 @@ LANGUAGES = {
         "step4": "चरण 4: आपके पाठ्यक्रम सुझाव",
         "start_over": "फिर से शुरू करें",
         "export": "PDF के रूप में निर्यात करें",
-        "trending": "X पर ट्रेंडिंग कौशल देखें",
-        "courses": "पाठ्यक्रम प्रबंधन",
-        "dashboard": "शिक्षार्थी डैशबोर्ड",
-        "discussion": "चर्चा बोर्ड"
+        "trending": "X पर ट्रेंडिंग कौशल देखें"
     }
 }
 
 # Session State Initialization
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
+if "form_submitted" not in st.session_state:
     st.session_state.form_submitted = False
     st.session_state.name = ""
     st.session_state.email = ""
@@ -219,47 +182,48 @@ if "user_id" not in st.session_state:
     st.session_state.trending_skills = []
     st.session_state.prerequisites = {}
 
-# Helper Functions
+# Functions
 def validate_input(name: str, email: str, profession: str) -> bool:
     email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-    return (name.strip() and re.match(email_pattern, email) and profession.strip())
+    return (name.strip() != "" and 
+            re.match(email_pattern, email) is not None and 
+            profession.strip() != "")
 
 def submit_details():
     if validate_input(st.session_state.input_name, st.session_state.input_email, st.session_state.input_profession):
-        session = Session()
-        user = session.query(User).filter_by(email=st.session_state.input_email).first()
-        if not user:
-            user = User(name=st.session_state.input_name, email=st.session_state.input_email, profession=st.session_state.input_profession)
-            session.add(user)
-            session.commit()
-        st.session_state.user_id = user.id
-        st.session_state.name = user.name
-        st.session_state.email = user.email
-        st.session_state.profession = user.profession
+        st.session_state.name = st.session_state.input_name
+        st.session_state.email = st.session_state.input_email
+        st.session_state.profession = st.session_state.input_profession
         st.session_state.form_submitted = True
         suggest_skills()
         st.success(f"{lang['welcome']} Let's get started, {st.session_state.name}!")
     else:
-        st.error("Please provide valid name, email, and profession.")
+        st.error("Please provide a valid name, email, and profession.")
 
 def suggest_skills():
-    prompt = f"Suggest 8-10 key skills for a {st.session_state.profession} as a comma-separated list."
+    prompt = (
+        f"You are an expert career advisor. For a '{st.session_state.profession}', "
+        f"suggest 8-10 key skills that are essential for success in this profession. "
+        f"Return the skills as a comma-separated list (e.g., 'Python, Machine Learning, Data Analysis')."
+    )
     skills_response = get_gemini_response(prompt)
     st.session_state.suggested_skills = [skill.strip() for skill in skills_response.split(",") if skill.strip()]
 
 def get_verification_questions_and_prerequisites(skills: dict) -> tuple:
     skill_ratings = "\n".join([f"{skill}: {rating}/10" for skill, rating in skills.items()])
     prompt = (
-        f"For a {st.session_state.profession}, user rated:\n{skill_ratings}\n"
-        f"1. Generate one open-ended question per skill to verify proficiency.\n"
-        f"2. Provide a brief hint for each question.\n"
-        f"3. For skills rated below 5/10, suggest one prerequisite skill.\n"
+        f"You are an expert in skill assessment. For a {st.session_state.profession}, "
+        f"the user has rated their skills as follows:\n{skill_ratings}\n"
+        f"1. Generate one open-ended question per skill to verify proficiency. "
+        f"2. Provide a brief hint for each question. "
+        f"3. For skills rated below 5/10, suggest one prerequisite skill. "
         f"Return in format: 'Skill: Question | Hint | Prerequisite (if applicable)' (one per line)."
     )
     response = get_gemini_response(prompt)
     questions = {}
     prerequisites = {}
     for line in response.split("\n"):
+        line = line.strip()
         if line and ": " in line and "|" in line:
             try:
                 skill, rest = line.split(": ", 1)
@@ -269,152 +233,140 @@ def get_verification_questions_and_prerequisites(skills: dict) -> tuple:
                 questions[skill.strip()] = {"question": question.strip(), "hint": hint.strip()}
                 if prereq:
                     prerequisites[skill.strip()] = prereq.strip()
-            except:
+            except ValueError:
                 st.warning(f"Skipping malformed line: {line}")
     return questions, prerequisites
 
 def score_verification_answers(answers: dict) -> dict:
     if not answers:
-        st.error("Please provide answers for each skill.")
+        st.error("No verification answers provided. Please enter answers for each skill.")
         return {}
+    
     prompt = (
-        f"Assess these answers for a {st.session_state.profession}:\n" +
+        f"You are an expert assessor. You are given the following verification answers for a {st.session_state.profession}. "
+        f"Evaluate each answer based on depth and relevance and score it out of 10. The answers are:\n" +
         "\n".join([f"{skill}: {answer}" for skill, answer in answers.items()]) +
-        "\nScore each out of 10 in format: 'Skill: Score' (one per line)."
+        "\nReturn the scores in the format: 'Skill: Score' (one per line), where Score is a single integer (e.g., 'Prioritization: 7')."
     )
     response = get_gemini_response(prompt)
     scores = {}
     for line in response.split("\n"):
+        line = line.strip()
         if line and ": " in line:
             try:
-                skill, score = line.split(": ")
-                scores[skill.strip()] = int(score.strip())
-            except:
-                st.warning(f"Skipping invalid score: {line}")
+                skill, score = line.split(": ", 1)
+                score = score.strip()
+                if score.isdigit():
+                    scores[skill.strip()] = int(score)
+                else:
+                    st.warning(f"Skipping invalid score for {skill}: '{score}' is not a number")
+            except ValueError as e:
+                st.warning(f"Error processing line '{line}': {e}")
+    if not scores:
+        st.error("No valid scores were extracted. Please try again.")
     return scores
 
 def get_dynamic_recommendations(profession: str, skills: dict, answers: dict, scores: dict, prerequisites: dict, trending_skills: list) -> str:
-    skill_info = "\n".join([f"{skill}: Self-rated {rating}/10, Verification: {scores.get(skill, 'N/A')}/10, Prerequisite: {prerequisites.get(skill, 'None')}" 
+    skill_info = "\n".join([f"{skill}: Self-rated {rating}/10, Verification: {answers.get(skill, 'Not provided')}, Score: {scores.get(skill, 'N/A')}/10, Prerequisite: {prerequisites.get(skill, 'None')}" 
                            for skill, rating in skills.items()])
-    trending_info = f"Trending skills: {', '.join(trending_skills)}"
+    trending_info = f"Trending skills on X for {profession}: {', '.join(trending_skills)}"
     prompt = (
-        f"For a '{profession}', user profile:\n{skill_info}\n{trending_info}\n"
-        f"Provide a learning path with 3 phases (Beginner, Intermediate, Advanced).\n"
-        f"Format:\n- Phase: [Name] - [Duration]\n  - Focus: [Description]\n  - [Skill]: [Resource Type] | [Name] | [URL] | [Rationale]\n"
-        f"One recommendation per line."
+        f"You are an expert education consultant. For a '{profession}', "
+        f"the user has this skill profile:\n{skill_info}\n"
+        f"Additionally, consider these trending skills from X: {trending_info}\n"
+        f"Provide a detailed, personalized learning path with 3 phases (Beginner, Intermediate, Advanced). "
+        f"Use this format for each phase:\n"
+        f"- Phase: [Phase Name] - [Duration]\n"
+        f"  - Focus: [Brief description of focus]\n"
+        f"  - [Skill]: [Resource Type] | [Resource Name] | [URL (if available)] | [Rationale]\n"
+        f"Ensure the output is plain text with one recommendation per line."
     )
     return get_gemini_response(prompt)
 
 def export_to_pdf(name: str, profession: str, skills: dict, verification_scores: dict, recommendations: str, trending_skills: list):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch, rightMargin=0.75*inch, leftMargin=0.75*inch)
     styles = getSampleStyleSheet()
-    header_style = ParagraphStyle('Header', parent=styles['Heading1'], fontSize=26, textColor=colors.Color(76/255, 81/255, 191/255), spaceAfter=15, alignment=1)
-    subheader_style = ParagraphStyle('Subheader', parent=styles['Heading2'], fontSize=16, textColor=colors.grey, spaceAfter=10)
-    body_style = ParagraphStyle('Body', parent=styles['BodyText'], fontSize=11, leading=14)
-    phase_style = ParagraphStyle('Phase', parent=styles['Heading2'], fontSize=14, textColor=colors.Color(45/255, 55/255, 72/255), spaceAfter=8)
+    
+    # Define styles
+    header_style = ParagraphStyle('Header', parent=styles['Heading1'], fontSize=26, textColor=colors.Color(76/255, 81/255, 191/255), spaceAfter=15, alignment=1, fontName='Helvetica-Bold')
+    subheader_style = ParagraphStyle('Subheader', parent=styles['Heading2'], fontSize=16, textColor=colors.grey, spaceAfter=10, alignment=1, fontName='Helvetica')
+    body_style = ParagraphStyle('Body', parent=styles['BodyText'], fontSize=11, textColor=colors.black, leading=14, alignment=0, fontName='Helvetica')
+    phase_style = ParagraphStyle('Phase', parent=styles['Heading2'], fontSize=14, textColor=colors.Color(45/255, 55/255, 72/255), spaceAfter=8, alignment=1, fontName='Helvetica-Bold')
+
     story = []
+
+    # Header Section
     try:
         logo = Image("assets/images/logo.png", width=1.2*inch, height=1.2*inch)
         story.append(logo)
     except:
         story.append(Paragraph("ElevatIQ", header_style))
-    story.append(Paragraph("Personalized Learning Path", header_style))
-    story.append(Paragraph(f"Name: {name}", body_style))
-    story.append(Paragraph(f"Profession: {profession}", body_style))
+    story.append(Paragraph("Personalized Learning Path Report", header_style))
+    story.append(Paragraph("Empowering Your Professional Growth", body_style))
+    story.append(Spacer(1, 0.3*inch))
+
+    # User Details Section
+    story.append(Paragraph("User Information", subheader_style))
+    story.append(Paragraph(f"<b>Name:</b> {name}", body_style))
+    story.append(Paragraph(f"<b>Profession:</b> {profession}", body_style))
     story.append(Spacer(1, 0.25*inch))
-    story.append(Paragraph("Skill Assessment", subheader_style))
+
+    # Skills Table Section
+    story.append(Paragraph("Skill Assessment Summary", subheader_style))
     skills_data = [["Skill", "Self-Rating", "Verification Score"]]
     for skill, rating in skills.items():
-        skills_data.append([skill, f"{rating}/10", f"{verification_scores.get(skill, 'N/A')}/10"])
+        v_score = verification_scores.get(skill, "N/A")
+        skills_data.append([skill, f"{rating}/10", f"{v_score}/10" if v_score != "N/A" else "N/A"])
     skills_table = Table(skills_data, colWidths=[2.5*inch, 1.2*inch, 1.3*inch])
     skills_table.setStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(76/255, 81/255, 191/255)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ])
     story.append(skills_table)
     story.append(Spacer(1, 0.25*inch))
-    story.append(Paragraph("Trending Skills", subheader_style))
-    story.append(Paragraph(f"{', '.join(trending_skills)}", body_style))
+
+    # Trending Skills Section
+    story.append(Paragraph("Trending Skills on X", subheader_style))
+    trending_text = f"For {profession}: {', '.join(trending_skills) if trending_skills and trending_skills[0] != 'Error fetching trends' else 'No trending skills available'}"
+    story.append(Paragraph(trending_text, body_style))
     story.append(Spacer(1, 0.25*inch))
-    story.append(Paragraph("Learning Path", subheader_style))
+
+    # Recommendations Section
+    story.append(Paragraph("Recommended Learning Path", subheader_style))
+    phases = ["Beginner", "Intermediate", "Advanced"]
+    current_phase = None
     for line in recommendations.split("\n"):
-        if line.strip():
-            if "Phase:" in line:
-                story.append(Paragraph(line, phase_style))
-            else:
-                story.append(Paragraph(line.replace("\n", "<br />"), body_style))
-    story.append(Paragraph("Generated by ElevatIQ © 2025", body_style))
+        line = line.strip()
+        if not line:
+            continue
+        if any(phase.lower() in line.lower() for phase in phases):
+            current_phase = next((phase for phase in phases if phase.lower() in line.lower()), None)
+            story.append(Paragraph(line, phase_style))
+        elif current_phase:
+            story.append(Paragraph(line.replace("\n", "<br />"), body_style))
+        else:
+            story.append(Paragraph(line.replace("\n", "<br />"), body_style))
+    story.append(Spacer(1, 0.25*inch))
+
+    # Footer Section
+    story.append(Paragraph("Report Generated by ElevatIQ | © 2025 ElevatIQ", body_style))
+
+    # Build the PDF
     doc.build(story)
     buffer.seek(0)
     return buffer
 
-def award_badge(user_id: int, badge_name: str):
-    session = Session()
-    badge = Badge(user_id=user_id, badge_name=badge_name)
-    session.add(badge)
-    session.commit()
-    st.balloons()
-    st.success(f"Badge earned: {badge_name}!")
-
-def show_progress(user_id: int):
-    session = Session()
-    progress = session.query(Progress).filter_by(user_id=user_id).all()
-    total = len(progress)
-    completed = sum(1 for p in progress if p.completion >= 1.0)
-    if total > 0:
-        st.progress(completed / total)
-        st.write(f"Progress: {int((completed / total) * 100)}%")
-    else:
-        st.write("No progress yet.")
-
-# New Features
-def create_course():
-    st.subheader(lang["courses"])
-    with st.form("course_form"):
-        title = st.text_input("Course Title")
-        description = st.text_area("Description")
-        modules = st.text_area("Modules (JSON format, e.g., [{'title': 'Intro', 'content': 'Text'}])")
-        if st.form_submit_button("Save Course"):
-            try:
-                session = Session()
-                course = Course(title=title, description=description, content=eval(modules))
-                session.add(course)
-                session.commit()
-                st.success("Course created!")
-                award_badge(st.session_state.user_id, "Course Creator")
-            except Exception as e:
-                st.error(f"Error saving course: {e}")
-
-def discussion_board(course_id: int):
-    st.subheader(lang["discussion"])
-    session = Session()
-    with st.form("post_form"):
-        post = st.text_area("Your Post")
-        if st.form_submit_button("Submit"):
-            session.add(Post(course_id=course_id, user_id=st.session_state.user_id, content=post))
-            session.commit()
-            st.success("Posted!")
-    posts = session.query(Post).filter_by(course_id=course_id).all()
-    for post in posts:
-        st.markdown(f"**User {post.user_id}**: {post.content}")
-
-def learner_dashboard(user_id: int):
-    st.subheader(lang["dashboard"])
-    session = Session()
-    progress = session.query(Progress).filter_by(user_id=user_id).all()
-    if progress:
-        df = pd.DataFrame([(p.course_id, p.completion * 100) for p in progress], columns=["Course", "Completion (%)"])
-        fig = px.bar(df, x="Course", y="Completion (%)", title="Course Progress")
-        st.plotly_chart(fig)
-    badges = session.query(Badge).filter_by(user_id=user_id).all()
-    if badges:
-        st.write("Your Badges:")
-        for badge in badges:
-            st.markdown(f"- 🏅 {badge.badge_name}")
-    show_progress(user_id)
+def render_star_rating(skill: str, rating: int):
+    stars = "".join(["★" if i < rating else "☆" for i in range(10)])
+    return f"<div class='star-rating'>{stars}</div>"
 
 # Main App
 def main():
@@ -429,126 +381,204 @@ def main():
             <div style='margin-top: 20px;'>
                 <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>🏠 Home</a>
                 <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>👤 Profile</a>
-                <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>📚 Courses</a>
+                <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>📚 Recommendations</a>
             </div>
         """, unsafe_allow_html=True)
-        st.session_state.language = st.selectbox("🌐 Language", ["English", "Hindi"])
+        st.session_state.language = st.selectbox("🌐 Language / भाषा", ["English", "Hindi"], format_func=lambda x: f"{x} ({'EN' if x == 'English' else 'HI'})")
 
-    # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Learn", "Create Courses", "Discuss", "Dashboard"])
+    # Main Content
+    st.title(lang["title"])
+    st.write(lang["welcome"])
 
-    with tab1:
-        st.title(lang["title"])
-        st.write(lang["welcome"])
-        if not st.session_state.form_submitted:
-            st.subheader(lang["step1"])
-            with st.form("user_details_form"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.text_input(lang["name"], key="input_name")
-                with col2:
-                    st.text_input(lang["email"], key="input_email")
-                st.text_input(lang["profession"], key="input_profession")
-                if st.form_submit_button(lang["submit"]):
-                    submit_details()
+    # Progress Tracker (Fixed Syntax)
+    progress_steps = ["Details", "Skills", "Rate Skills", "Verify Skills", "Recommendations"]
+    current_step = 0
+    if st.session_state.form_submitted:
+        current_step = 1
+        if st.session_state.selected_skills:
+            current_step = 2
+            if st.session_state.verification_questions:
+                current_step = 3
+                if st.session_state.skills_verified:
+                    current_step = 4
+    steps_html = "".join([f"<div style='flex: 1; text-align: center; padding: 10px; background: {'#4c51bf' if i <= current_step else '#e2e8f0'}; color: {'#ffffff' if i <= current_step else '#4a5568'}; border-radius: 8px; margin: 0 5px;'>{step}</div>" for i, step in enumerate(progress_steps)])
+    st.markdown(f"""
+        <div style='display: flex; justify-content: space-between; margin: 20px 0;'>
+            {steps_html}
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Step 1: User Details
+    if not st.session_state.form_submitted:
+        st.subheader(lang["step1"])
+        with st.form("user_details_form"):
+            st.markdown("<div class='stForm'>", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.text_input(lang["name"], key="input_name", placeholder="e.g., John Doe")
+            with col2:
+                st.text_input(lang["email"], key="input_email", placeholder="e.g., john.doe@example.com")
+            st.text_input(lang["profession"], key="input_profession", placeholder="e.g., Software Engineer")
+            st.markdown(f"<div class='tooltip'>Submit to begin<span class='tooltiptext'>{lang['welcome']}</span></div>", unsafe_allow_html=True)
+            submit_clicked = st.form_submit_button(f"🚀 {lang['submit']}")
+            st.markdown("</div>", unsafe_allow_html=True)
+        if submit_clicked:
+            submit_details()
+    else:
+        # User Profile Card
+        st.markdown(f"""
+            <div style='background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;'>
+                <h3 style='margin: 0; color: #2d3748;'>Welcome, {st.session_state.name}!</h3>
+                <p style='color: #718096; margin: 5px 0;'>📧 {st.session_state.email}</p>
+                <p style='color: #718096; margin: 5px 0;'>💼 {st.session_state.profession}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Step 2: Select Skills
+        if not st.session_state.selected_skills:
+            st.subheader(lang["step2"])
+            st.write(lang["suggested"])
+            if st.button("🔄 Suggest More Skills"):
+                suggest_skills()
+                st.rerun()
+            selected = st.multiselect(lang["suggested"], st.session_state.suggested_skills, default=st.session_state.suggested_skills[:5])
+            custom_skill = st.text_input(lang["add_skill"], key="custom_skill", placeholder="e.g., Blockchain")
+            if st.button("➕ Add Custom Skill") and custom_skill.strip():
+                st.session_state.suggested_skills.append(custom_skill)
+                selected.append(custom_skill)
+                st.rerun()
+            if selected and st.button(f"✅ {lang['confirm']}"):
+                for skill in selected:
+                    st.session_state.selected_skills[skill] = 5
+                st.success("Skills confirmed! Now rate them.")
+                st.rerun()
+
+        # Step 3: Rate Skills
+        elif not st.session_state.verification_questions:
+            st.subheader(lang["rate"])
+            for skill in st.session_state.selected_skills:
+                rating = st.slider(f"{skill}", 1, 10, st.session_state.selected_skills[skill], key=f"slider_{skill}")
+                st.session_state.selected_skills[skill] = rating
+                st.markdown(render_star_rating(skill, rating), unsafe_allow_html=True)
+            if st.button("📊 Submit Ratings"):
+                questions, prereqs = get_verification_questions_and_prerequisites(st.session_state.selected_skills)
+                st.session_state.verification_questions = questions
+                st.session_state.prerequisites = prereqs
+                st.success("Ratings submitted! Verify your skills next.")
+                st.rerun()
+
+        # Step 4: Verify Skills
+        elif not st.session_state.skills_verified:
+            st.subheader(lang["step3"])
+            st.write(lang["verify_intro"])
+            for skill, data in st.session_state.verification_questions.items():
+                answer = st.text_area(f"{skill}: {data['question']}", key=f"verify_{skill}", placeholder="Provide a detailed answer...")
+                st.markdown(f"<div class='hint'>Hint: {data['hint']}</div>", unsafe_allow_html=True)
+                st.session_state.verification_answers[skill] = answer
+                if st.session_state.prerequisites.get(skill):
+                    st.info(f"Prerequisite for {skill}: {st.session_state.prerequisites[skill]}")
+            if st.button("✔️ Submit Verification"):
+                st.session_state.verification_scores = score_verification_answers(st.session_state.verification_answers)
+                st.session_state.skills_verified = True
+                st.success("Verification complete! Check your recommendations.")
+                st.rerun()
+
+        # Step 5: Recommendations
         else:
-            st.markdown(f"""
-                <div style='background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-                    <h3>Welcome, {st.session_state.name}!</h3>
-                    <p>📧 {st.session_state.email}</p>
-                    <p>💼 {st.session_state.profession}</p>
-                </div>
-            """, unsafe_allow_html=True)
+            st.subheader(lang["step4"])
+            with st.spinner("<div style='display: flex; align-items: center;'><img src='https://loading.io/assets/mod/spinner/spinner/lg.gif' width='30'> Generating recommendations...</div>"):
+                if not st.session_state.trending_skills:
+                    st.session_state.trending_skills = get_trending_skills(st.session_state.profession)
+                recommendations = get_dynamic_recommendations(
+                    st.session_state.profession, st.session_state.selected_skills, 
+                    st.session_state.verification_answers, st.session_state.verification_scores, 
+                    st.session_state.prerequisites, st.session_state.trending_skills
+                )
+                recommendations = re.sub(r'(https?://[^\s]+)', r'<a href="\1" target="_blank">\1</a>', recommendations)
 
-            if not st.session_state.selected_skills:
-                st.subheader(lang["step2"])
-                st.write(lang["suggested"])
-                if st.button("🔄 Suggest More Skills"):
-                    suggest_skills()
-                    st.rerun()
-                selected = st.multiselect(lang["suggested"], st.session_state.suggested_skills, default=st.session_state.suggested_skills[:5])
-                custom_skill = st.text_input(lang["add_skill"])
-                if st.button("➕ Add Custom Skill") and custom_skill.strip():
-                    st.session_state.suggested_skills.append(custom_skill)
-                    selected.append(custom_skill)
-                    st.rerun()
-                if selected and st.button(lang["confirm"]):
-                    for skill in selected:
-                        st.session_state.selected_skills[skill] = 5
-                    st.success("Skills confirmed!")
-                    st.rerun()
+            st.markdown("<div class='recommendations'>", unsafe_allow_html=True)
+            phases = {"Beginner": None, "Intermediate": None, "Advanced": None}
+            current_phase = None
+            phase_content = {"Beginner": [], "Intermediate": [], "Advanced": []}
 
-            elif not st.session_state.verification_questions:
-                st.subheader(lang["rate"])
-                for skill in st.session_state.selected_skills:
-                    rating = st.slider(f"{skill}", 1, 10, st.session_state.selected_skills[skill], key=f"slider_{skill}")
-                    st.session_state.selected_skills[skill] = rating
-                if st.button("📊 Submit Ratings"):
-                    questions, prereqs = get_verification_questions_and_prerequisites(st.session_state.selected_skills)
-                    st.session_state.verification_questions = questions
-                    st.session_state.prerequisites = prereqs
-                    st.success("Ratings submitted!")
-                    st.rerun()
+            for line in recommendations.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                for phase in phases.keys():
+                    if phase.lower() in line.lower():
+                        current_phase = phase
+                        phases[phase] = st.expander(f"📚 {phase} Phase", expanded=True)
+                        break
+                if current_phase and line:
+                    phase_content[current_phase].append(line)
 
-            elif not st.session_state.skills_verified:
-                st.subheader(lang["step3"])
-                st.write(lang["verify_intro"])
-                for skill, data in st.session_state.verification_questions.items():
-                    answer = st.text_area(f"{skill}: {data['question']}", key=f"verify_{skill}")
-                    st.markdown(f"<div class='hint'>Hint: {data['hint']}</div>", unsafe_allow_html=True)
-                    st.session_state.verification_answers[skill] = answer
-                    if st.session_state.prerequisites.get(skill):
-                        st.info(f"Prerequisite: {st.session_state.prerequisites[skill]}")
-                if st.button("✔️ Submit Verification"):
-                    st.session_state.verification_scores = score_verification_answers(st.session_state.verification_answers)
-                    st.session_state.skills_verified = True
-                    award_badge(st.session_state.user_id, "Skill Verifier")
-                    st.success("Verification complete!")
-                    st.rerun()
+            for phase, expander in phases.items():
+                if expander:
+                    with expander:
+                        if phase_content[phase]:
+                            st.markdown(f"<div class='phase-header'>{phase_content[phase][0]}</div>", unsafe_allow_html=True)
+                            for item in phase_content[phase][1:]:
+                                if ": " in item:
+                                    skill, details = item.split(": ", 1)
+                                    parts = [d.strip() for d in details.split(" | ")]
+                                    if len(parts) >= 3:
+                                        resource_type = parts[0]
+                                        resource_name = parts[1]
+                                        url = parts[2] if len(parts) > 2 and parts[2] else "N/A"
+                                        rationale = parts[3] if len(parts) > 3 else "No rationale provided"
+                                        st.markdown(f"""
+                                            <div class='skill-item'>
+                                                <div class='skill-title'>📖 {skill}</div>
+                                                <div class='resource-details'>
+                                                    <strong>Type:</strong> {resource_type}<br>
+                                                    <strong>Resource:</strong> {resource_name} {f'<a href="{url}" target="_blank">Link</a>' if url != "N/A" else ''}<br>
+                                                    <strong>Rationale:</strong> {rationale}
+                                                </div>
+                                            </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.warning(f"Skipping malformed recommendation: {item}")
+                        else:
+                            st.write("No recommendations available for this phase.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            else:
-                st.subheader(lang["step4"])
-                with st.spinner("Generating recommendations..."):
-                    if not st.session_state.trending_skills:
-                        st.session_state.trending_skills = get_trending_skills(st.session_state.profession)
-                    recommendations = get_dynamic_recommendations(
-                        st.session_state.profession, st.session_state.selected_skills,
-                        st.session_state.verification_answers, st.session_state.verification_scores,
-                        st.session_state.prerequisites, st.session_state.trending_skills
-                    )
-                for phase in ["Beginner", "Intermediate", "Advanced"]:
-                    with st.expander(f"📚 {phase} Phase"):
-                        for line in recommendations.split("\n"):
-                            if phase.lower() in line.lower() or "- " in line:
-                                st.markdown(line)
-                if st.button(lang["export"]):
-                    pdf_buffer = export_to_pdf(
-                        st.session_state.name, st.session_state.profession,
-                        st.session_state.selected_skills, st.session_state.verification_scores,
-                        recommendations, st.session_state.trending_skills
-                    )
-                    st.download_button("Download PDF", pdf_buffer, "learning_path.pdf", "application/pdf")
-                if st.button(lang["start_over"]):
-                    for key in list(st.session_state.keys()):
-                        if key != "user_id":
-                            del st.session_state[key]
-                    st.rerun()
+            # Filters
+            st.markdown("<h3>🔎 Filter Recommendations</h3>", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                free_filter = st.checkbox("Free Only", key="free_filter")
+            with col2:
+                short_filter = st.checkbox("Short Courses", key="short_filter")
+            if free_filter or short_filter:
+                st.info("Filters applied. Recommendations may be limited.")
 
-    with tab2:
-        create_course()
+            # Trending Skills
+            if st.button(f"📈 {lang['trending']}"):
+                with st.spinner("<div style='display: flex; align-items: center;'><img src='https://loading.io/assets/mod/spinner/spinner/lg.gif' width='30'> Fetching trending skills...</div>"):
+                    st.session_state.trending_skills = get_trending_skills(st.session_state.profession)
+                st.write(f"Trending skills on X for {st.session_state.profession}:")
+                for skill in st.session_state.trending_skills:
+                    st.write(f"- {skill}")
+                st.info("These trending skills have been incorporated into your recommendations.")
 
-    with tab3:
-        session = Session()
-        courses = session.query(Course).all()
-        course_id = st.selectbox("Select Course", [c.id for c in courses], format_func=lambda x: next(c.title for c in courses if c.id == x))
-        if course_id:
-            discussion_board(course_id)
+            # Export PDF
+            if st.button(f"📄 {lang['export']}"):
+                pdf_buffer = export_to_pdf(
+                    st.session_state.name,
+                    st.session_state.profession,
+                    st.session_state.selected_skills,
+                    st.session_state.verification_scores,
+                    recommendations,
+                    st.session_state.trending_skills
+                )
+                st.download_button("Download PDF", pdf_buffer, "learning_path.pdf", "application/pdf")
 
-    with tab4:
-        if st.session_state.user_id:
-            learner_dashboard(st.session_state.user_id)
-        else:
-            st.warning("Please submit your details to view the dashboard.")
+            # Start Over
+            if st.button(f"🔄 {lang['start_over']}"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
 
     # Footer
     st.markdown("""
