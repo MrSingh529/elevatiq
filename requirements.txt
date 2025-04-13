@@ -1,4 +1,5 @@
 sqlalchemy
+plotly
 streamlit
 requests
 reportlab
