@@ -35,33 +35,27 @@ st.markdown("""
             animation: fadeOut 1s ease-in-out forwards;
             animation-delay: 3s;
         }
-
         .logo-animation {
             width: 200px;
             height: 200px;
             animation: pulse 1.5s infinite alternate, rotate 4s linear infinite;
         }
-
         @keyframes pulse {
             from { transform: scale(1); }
             to { transform: scale(1.1); }
         }
-
         @keyframes rotate {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-
         @keyframes fadeOut {
             to { opacity: 0; visibility: hidden; }
         }
-
         .main-content {
             opacity: 0;
             animation: fadeIn 1s ease-in-out forwards;
             animation-delay: 3.5s;
         }
-
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -97,11 +91,9 @@ def get_trending_skills(profession: str) -> list:
     try:
         query = f"trending skills {profession} -is:retweet"
         tweets = client.search_recent_tweets(query=query, max_results=50, tweet_fields=["created_at"])
-
         skill_keywords = ["python", "javascript", "java", "cloud", "ai", "machine learning", "data analysis", "devops", "design"]
         trending_skills = []
         skill_count = {}
-
         for tweet in tweets.data or []:
             text = tweet.text.lower()
             for skill in skill_keywords:
@@ -109,7 +101,6 @@ def get_trending_skills(profession: str) -> list:
                     skill_count[skill] = skill_count.get(skill, 0) + 1
                     if skill_count[skill] > 1 and len(trending_skills) < 5:
                         trending_skills.append(skill.title())
-
         if not trending_skills:
             trending_skills = ["No trending skills found"]
         return trending_skills[:5]
@@ -130,6 +121,7 @@ LANGUAGES = {
         "name": "Your Name",
         "email": "Email",
         "profession": "Your Profession",
+        "role": "Your Role",
         "submit": "Submit Details",
         "step2": "Step 2: Select and Rate Your Skills",
         "suggested": "Based on your profession, here are some suggested skills:",
@@ -151,6 +143,7 @@ LANGUAGES = {
         "name": "आपका नाम",
         "email": "ईमेल",
         "profession": "आपका पेशा",
+        "role": "आपकी भूमिका",
         "submit": "विवरण जमा करें",
         "step2": "चरण 2: अपने कौशल का चयन और मूल्यांकन करें",
         "suggested": "आपके पेशे के आधार पर, यहाँ कुछ सुझाए गए कौशल हैं:",
@@ -166,12 +159,13 @@ LANGUAGES = {
     }
 }
 
-# Session State Initialization
+# Session State Initialization (new field for role and forum posts)
 if "form_submitted" not in st.session_state:
     st.session_state.form_submitted = False
     st.session_state.name = ""
     st.session_state.email = ""
     st.session_state.profession = ""
+    st.session_state.role = ""  # Student or Instructor
     st.session_state.suggested_skills = []
     st.session_state.selected_skills = {}
     st.session_state.verification_questions = {}
@@ -181,8 +175,10 @@ if "form_submitted" not in st.session_state:
     st.session_state.language = "English"
     st.session_state.trending_skills = []
     st.session_state.prerequisites = {}
+if "forum_posts" not in st.session_state:
+    st.session_state.forum_posts = []  # List of posts for the discussion forum
 
-# Functions
+# Functions (existing functions remain unchanged)
 def validate_input(name: str, email: str, profession: str) -> bool:
     email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     return (name.strip() != "" and 
@@ -194,6 +190,7 @@ def submit_details():
         st.session_state.name = st.session_state.input_name
         st.session_state.email = st.session_state.input_email
         st.session_state.profession = st.session_state.input_profession
+        st.session_state.role = st.session_state.input_role
         st.session_state.form_submitted = True
         suggest_skills()
         st.success(f"{lang['welcome']} Let's get started, {st.session_state.name}!")
@@ -241,7 +238,6 @@ def score_verification_answers(answers: dict) -> dict:
     if not answers:
         st.error("No verification answers provided. Please enter answers for each skill.")
         return {}
-    
     prompt = (
         f"You are an expert assessor. You are given the following verification answers for a {st.session_state.profession}. "
         f"Evaluate each answer based on depth and relevance and score it out of 10. The answers are:\n" +
@@ -287,7 +283,6 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch, rightMargin=0.75*inch, leftMargin=0.75*inch)
     styles = getSampleStyleSheet()
-    
     # Define styles
     header_style = ParagraphStyle('Header', parent=styles['Heading1'], fontSize=26, textColor=colors.Color(76/255, 81/255, 191/255), spaceAfter=15, alignment=1, fontName='Helvetica-Bold')
     subheader_style = ParagraphStyle('Subheader', parent=styles['Heading2'], fontSize=16, textColor=colors.grey, spaceAfter=10, alignment=1, fontName='Helvetica')
@@ -295,7 +290,6 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     phase_style = ParagraphStyle('Phase', parent=styles['Heading2'], fontSize=14, textColor=colors.Color(45/255, 55/255, 72/255), spaceAfter=8, alignment=1, fontName='Helvetica-Bold')
 
     story = []
-
     # Header Section
     try:
         logo = Image("assets/images/logo.png", width=1.2*inch, height=1.2*inch)
@@ -305,13 +299,11 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     story.append(Paragraph("Personalized Learning Path Report", header_style))
     story.append(Paragraph("Empowering Your Professional Growth", body_style))
     story.append(Spacer(1, 0.3*inch))
-
     # User Details Section
     story.append(Paragraph("User Information", subheader_style))
     story.append(Paragraph(f"<b>Name:</b> {name}", body_style))
     story.append(Paragraph(f"<b>Profession:</b> {profession}", body_style))
     story.append(Spacer(1, 0.25*inch))
-
     # Skills Table Section
     story.append(Paragraph("Skill Assessment Summary", subheader_style))
     skills_data = [["Skill", "Self-Rating", "Verification Score"]]
@@ -332,13 +324,11 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
     ])
     story.append(skills_table)
     story.append(Spacer(1, 0.25*inch))
-
     # Trending Skills Section
     story.append(Paragraph("Trending Skills on X", subheader_style))
     trending_text = f"For {profession}: {', '.join(trending_skills) if trending_skills and trending_skills[0] != 'Error fetching trends' else 'No trending skills available'}"
     story.append(Paragraph(trending_text, body_style))
     story.append(Spacer(1, 0.25*inch))
-
     # Recommendations Section
     story.append(Paragraph("Recommended Learning Path", subheader_style))
     phases = ["Beginner", "Intermediate", "Advanced"]
@@ -355,10 +345,8 @@ def export_to_pdf(name: str, profession: str, skills: dict, verification_scores:
         else:
             story.append(Paragraph(line.replace("\n", "<br />"), body_style))
     story.append(Spacer(1, 0.25*inch))
-
     # Footer Section
     story.append(Paragraph("Report Generated by ElevatIQ | © 2025 ElevatIQ", body_style))
-
     # Build the PDF
     doc.build(story)
     buffer.seek(0)
@@ -368,29 +356,14 @@ def render_star_rating(skill: str, rating: int):
     stars = "".join(["★" if i < rating else "☆" for i in range(10)])
     return f"<div class='star-rating'>{stars}</div>"
 
-# Main App
-def main():
-    global lang
-    lang = LANGUAGES[st.session_state.language]
+# -----------------------------
+# New: Multi-Page Functions
+# -----------------------------
 
-    # Sidebar
-    with st.sidebar:
-        st.image("assets/images/logo.png", width=150)
-        st.markdown("<h1 style='color: #ffffff;'>ElevatIQ</h1>", unsafe_allow_html=True)
-        st.markdown("""
-            <div style='margin-top: 20px;'>
-                <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>🏠 Home</a>
-                <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>👤 Profile</a>
-                <a href='#' style='color: #edf2f7; text-decoration: none; font-size: 1.1em; display: block; margin: 10px 0;'>📚 Recommendations</a>
-            </div>
-        """, unsafe_allow_html=True)
-        st.session_state.language = st.selectbox("🌐 Language / भाषा", ["English", "Hindi"], format_func=lambda x: f"{x} ({'EN' if x == 'English' else 'HI'})")
-
-    # Main Content
+def show_personalized_learning():
     st.title(lang["title"])
     st.write(lang["welcome"])
-
-    # Progress Tracker (Fixed Syntax)
+    # Progress Tracker
     progress_steps = ["Details", "Skills", "Rate Skills", "Verify Skills", "Recommendations"]
     current_step = 0
     if st.session_state.form_submitted:
@@ -419,6 +392,8 @@ def main():
             with col2:
                 st.text_input(lang["email"], key="input_email", placeholder="e.g., john.doe@example.com")
             st.text_input(lang["profession"], key="input_profession", placeholder="e.g., Software Engineer")
+            # New: Role selection field
+            st.session_state.input_role = st.selectbox(lang["role"], ["Student", "Instructor"])
             st.markdown(f"<div class='tooltip'>Submit to begin<span class='tooltiptext'>{lang['welcome']}</span></div>", unsafe_allow_html=True)
             submit_clicked = st.form_submit_button(f"🚀 {lang['submit']}")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -430,10 +405,9 @@ def main():
             <div style='background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;'>
                 <h3 style='margin: 0; color: #2d3748;'>Welcome, {st.session_state.name}!</h3>
                 <p style='color: #718096; margin: 5px 0;'>📧 {st.session_state.email}</p>
-                <p style='color: #718096; margin: 5px 0;'>💼 {st.session_state.profession}</p>
+                <p style='color: #718096; margin: 5px 0;'>💼 {st.session_state.profession} ({st.session_state.role})</p>
             </div>
         """, unsafe_allow_html=True)
-
         # Step 2: Select Skills
         if not st.session_state.selected_skills:
             st.subheader(lang["step2"])
@@ -452,7 +426,6 @@ def main():
                     st.session_state.selected_skills[skill] = 5
                 st.success("Skills confirmed! Now rate them.")
                 st.rerun()
-
         # Step 3: Rate Skills
         elif not st.session_state.verification_questions:
             st.subheader(lang["rate"])
@@ -466,7 +439,6 @@ def main():
                 st.session_state.prerequisites = prereqs
                 st.success("Ratings submitted! Verify your skills next.")
                 st.rerun()
-
         # Step 4: Verify Skills
         elif not st.session_state.skills_verified:
             st.subheader(lang["step3"])
@@ -482,7 +454,6 @@ def main():
                 st.session_state.skills_verified = True
                 st.success("Verification complete! Check your recommendations.")
                 st.rerun()
-
         # Step 5: Recommendations
         else:
             st.subheader(lang["step4"])
@@ -495,12 +466,10 @@ def main():
                     st.session_state.prerequisites, st.session_state.trending_skills
                 )
                 recommendations = re.sub(r'(https?://[^\s]+)', r'<a href="\1" target="_blank">\1</a>', recommendations)
-
             st.markdown("<div class='recommendations'>", unsafe_allow_html=True)
             phases = {"Beginner": None, "Intermediate": None, "Advanced": None}
             current_phase = None
             phase_content = {"Beginner": [], "Intermediate": [], "Advanced": []}
-
             for line in recommendations.split("\n"):
                 line = line.strip()
                 if not line:
@@ -512,7 +481,6 @@ def main():
                         break
                 if current_phase and line:
                     phase_content[current_phase].append(line)
-
             for phase, expander in phases.items():
                 if expander:
                     with expander:
@@ -542,8 +510,7 @@ def main():
                         else:
                             st.write("No recommendations available for this phase.")
             st.markdown("</div>", unsafe_allow_html=True)
-
-            # Filters
+            # Filters and extra actions
             st.markdown("<h3>🔎 Filter Recommendations</h3>", unsafe_allow_html=True)
             col1, col2 = st.columns(2)
             with col1:
@@ -552,8 +519,6 @@ def main():
                 short_filter = st.checkbox("Short Courses", key="short_filter")
             if free_filter or short_filter:
                 st.info("Filters applied. Recommendations may be limited.")
-
-            # Trending Skills
             if st.button(f"📈 {lang['trending']}"):
                 with st.spinner("<div style='display: flex; align-items: center;'><img src='https://loading.io/assets/mod/spinner/spinner/lg.gif' width='30'> Fetching trending skills...</div>"):
                     st.session_state.trending_skills = get_trending_skills(st.session_state.profession)
@@ -561,8 +526,6 @@ def main():
                 for skill in st.session_state.trending_skills:
                     st.write(f"- {skill}")
                 st.info("These trending skills have been incorporated into your recommendations.")
-
-            # Export PDF
             if st.button(f"📄 {lang['export']}"):
                 pdf_buffer = export_to_pdf(
                     st.session_state.name,
@@ -573,12 +536,114 @@ def main():
                     st.session_state.trending_skills
                 )
                 st.download_button("Download PDF", pdf_buffer, "learning_path.pdf", "application/pdf")
-
-            # Start Over
             if st.button(f"🔄 {lang['start_over']}"):
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
+
+def show_course_catalog():
+    st.title("Course Catalog")
+    st.write("Explore our available courses. Click on a course to learn more or enroll.")
+
+    # Sample course list (this would come from a DB in a full implementation)
+    sample_courses = [
+        {"title": "Python Programming 101", "description": "Learn the fundamentals of Python programming.", "level": "Beginner", "free": True, "duration": "4 weeks"},
+        {"title": "Data Analysis with Pandas", "description": "Deep dive into data manipulation and analysis with Pandas.", "level": "Intermediate", "free": False, "duration": "6 weeks"},
+        {"title": "Machine Learning for All", "description": "A comprehensive introduction to machine learning concepts.", "level": "Advanced", "free": False, "duration": "8 weeks"}
+    ]
+    for course in sample_courses:
+        st.markdown(f"### {course['title']}")
+        st.write(course["description"])
+        st.write(f"**Level:** {course['level']} | **Duration:** {course['duration']} | **{'Free' if course['free'] else 'Paid'}")
+        if st.button(f"Enroll in {course['title']}", key=course['title']):
+            st.success(f"You have enrolled in {course['title']}!")
+        st.markdown("---")
+
+def show_discussion_forum():
+    st.title("Discussion Forum")
+    st.write("Share your thoughts or ask questions. Join the community discussion below.")
+
+    # Display existing posts
+    if st.session_state.forum_posts:
+        for idx, post in enumerate(st.session_state.forum_posts):
+            with st.expander(f"{post['author']} wrote: {post['content']}", expanded=False):
+                st.write("**Comments:**")
+                if post.get("comments"):
+                    for comment in post["comments"]:
+                        st.write(f"- {comment}")
+                else:
+                    st.write("No comments yet.")
+                # Simple input to add a comment
+                comment = st.text_input(f"Add a comment to post #{idx+1}", key=f"comment_{idx}")
+                if st.button(f"Submit Comment", key=f"submit_comment_{idx}"):
+                    if comment.strip():
+                        post.setdefault("comments", []).append(comment.strip())
+                        st.success("Comment added!")
+                        st.experimental_rerun()
+    else:
+        st.info("No posts yet. Start the conversation below!")
+
+    # Input to add a new post
+    st.markdown("### Add a New Post")
+    new_post = st.text_area("Your post", key="new_post")
+    if st.button("Submit Post"):
+        if new_post.strip():
+            st.session_state.forum_posts.append({"author": st.session_state.name or "Anonymous", "content": new_post.strip(), "comments": []})
+            st.success("Post added!")
+            st.experimental_rerun()
+        else:
+            st.error("Please enter some content for your post.")
+
+def show_analytics_dashboard():
+    st.title("Analytics Dashboard")
+    st.write("Instructor Analytics: View course enrollment, student performance, and other metrics.")
+
+    # Placeholder metrics for demonstration
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Students", "150")
+    col2.metric("Course Enrollments", "220")
+    col3.metric("Avg. Quiz Score", "78%")
+
+    st.write("### Course Performance")
+    # Sample static chart or table (in a full implementation, dynamic data would be loaded)
+    sample_data = {
+        "Course": ["Python Programming 101", "Data Analysis with Pandas", "Machine Learning for All"],
+        "Enrollments": [100, 80, 40],
+        "Avg. Score": [85, 78, 70]
+    }
+    st.table(sample_data)
+
+# -----------------------------
+# Main Navigation
+# -----------------------------
+def main():
+    global lang
+    lang = LANGUAGES[st.session_state.language]
+    
+    # Sidebar: Display logo, language selection, and navigation
+    with st.sidebar:
+        st.image("assets/images/logo.png", width=150)
+        st.markdown("<h1 style='color: #ffffff;'>ElevatIQ</h1>", unsafe_allow_html=True)
+        st.session_state.language = st.selectbox("🌐 Language / भाषा", ["English", "Hindi"], format_func=lambda x: f"{x} ({'EN' if x == 'English' else 'HI'})")
+        # Navigation Menu: Depending on the user's role after form submission, show additional pages
+        if st.session_state.form_submitted:
+            pages = ["Personalized Learning", "Course Catalog", "Discussion Forum"]
+            if st.session_state.role == "Instructor":
+                pages.append("Analytics Dashboard")
+            selected_page = st.radio("Navigation", pages)
+        else:
+            # If user has not submitted details, default to Personalized Learning page
+            selected_page = "Personalized Learning"
+
+    # Page rendering based on navigation selection
+    if selected_page == "Personalized Learning":
+        show_personalized_learning()
+    elif selected_page == "Course Catalog":
+        show_course_catalog()
+    elif selected_page == "Discussion Forum":
+        show_discussion_forum()
+    elif selected_page == "Analytics Dashboard":
+        show_analytics_dashboard()
 
     # Footer
     st.markdown("""
